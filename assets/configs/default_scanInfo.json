@@ -1,0 +1,57 @@
+{
+  "projectInfo": "scanPen",
+  "usb2xxNum":553650490,
+  "pinMask":8,
+  "pduInfo": {
+    "pduDeviceNum": 6,
+    "pduWifiNum": 8,
+    "pduIp": "10.3.37.30"
+  },
+  "deviceListInfo":{
+    "cskApLog": {
+      "type": "串口",
+      "port": "COM6",
+      "baudRate": 921600,
+      "serial_data_type": "string",
+      "regex": {
+      "hearCmdRes":"fw_version: (.*)",
+      "returnRes":".*(Return: 0),*",
+		  "cmdInvalid": ".*(Command not Found)",
+		  "ttsFile": ".*xtts save file:(.*pcm)",
+		  "transRes": ".*lis_trans_get_result:(.*)",
+      "ttsEnd":".*lis_tts_test_ta\\] \\[tts\\] (stop.*)",
+      "transEnd":".*trans_test\\] \\[trans\\] (stop.*)",
+      "dump":"backtrace end",
+      "verison":".*res_version: (.*)",
+      "bootReason":".*boot reason: (.*)"
+      }
+    },
+    "cskCpLog": {
+      "type": "串口",
+      "port": "COM3",
+      "baudRate": 921600,
+      "serial_data_type": "string",
+      "regex": {
+        "ocrkw": ".*ocr result\\[\\d+\\]:(.*)",
+        "切行初始化时间": ".*cutline int cost:(.*)ms",
+        "切行耗时": ".*cutline proc cost: (.*)ms",
+        "ocr初始化耗时": ".*ocr init cost: (.*)ms",
+        "ocr耗时": ".*ocr proc cost: (.*)ms",
+        "ttsInit": ".*Xtts init cost:(.*) ms",
+        "ttsCost": ".*ivTTS_SynthText_Emb cost:(.*)ms",
+        "ttsSpeed": ".*tts speed:(\\b\\d+\\.\\d+\\b)",
+        "transInit": ".*trans Init cost:(.*)ms",
+        "transCost": ".*trans process cost:(.*)ms",
+        "transTotal": ".*xtts.service.* total cost:(.*) ms",
+        "拼接总共处理的帧数": ".*st fuid:(.*?), cost:.*avg:.*",
+        "拼接总耗时": ".*st fuid:.*cost: (.*?) ms.*avg:.*",
+        "拼接平均耗时": ".*st fuid:.*cost:.*avg:(.*?) ms",
+        "摄像头帧率": ".*cv total cost:.*msm frames:(.*?) fps",
+        "拼接输出/切行输入分辨率": ".*cutline_iframe, (.*)",
+        "切行输出/ocr输入分辨率": ".*cutline_oframe, (.*)"
+      }
+    }
+  }
+
+
+}

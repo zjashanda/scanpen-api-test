@@ -1,0 +1,4 @@
+interface:
+  display_name: "ScanPen API Test"
+  short_description: "ScanPen serial API validation and stress testing"
+  default_prompt: "Use $scanpen-api-test to validate ScanPen serial APIs and run configurable TTS/translation pressure tests."
