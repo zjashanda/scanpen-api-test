@@ -161,11 +161,12 @@ function Close-StateProcess {
 }
 
 function Get-DeviceResultDir {
-    param([string]$Base, [string]$Label)
+    param([string]$Base, [string]$Label, [datetime]$StartedAfter)
     if (-not (Test-Path -LiteralPath $Base)) { return $null }
+    $threshold = $StartedAfter.AddSeconds(-5)
     return Get-ChildItem -LiteralPath $Base -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like "*-$Label" } |
-        Sort-Object LastWriteTime -Descending |
+        Where-Object { $_.Name -like "*-$Label" -and $_.CreationTime -ge $threshold } |
+        Sort-Object CreationTime -Descending |
         Select-Object -First 1
 }
 
@@ -179,7 +180,7 @@ function Get-LastActivityTime {
         }
     }
     if ($null -eq $State.ResultDir) {
-        $State.ResultDir = Get-DeviceResultDir -Base $State.ResultBase -Label $State.Label
+        $State.ResultDir = Get-DeviceResultDir -Base $State.ResultBase -Label $State.Label -StartedAfter $State.StartTime
     }
     if ($null -ne $State.ResultDir -and (Test-Path -LiteralPath $State.ResultDir.FullName)) {
         $latest = Get-ChildItem -LiteralPath $State.ResultDir.FullName -File -ErrorAction SilentlyContinue |
@@ -273,7 +274,7 @@ foreach ($d in $devices) {
 
 Write-Host ""
 try {
-    while (($states | Where-Object { $_.Status -eq "Running" }).Count -gt 0) {
+    while (@($states | Where-Object { $_.Status -eq "Running" }).Count -gt 0) {
         foreach ($s in ($states | Where-Object { $_.Status -eq "Running" })) {
             $p = $s.Process
             $p.Refresh()
@@ -325,7 +326,7 @@ finally {
 }
 
 $summary = foreach ($s in $states) {
-    if ($null -eq $s.ResultDir) { $s.ResultDir = Get-DeviceResultDir -Base $s.ResultBase -Label $s.Label }
+    if ($null -eq $s.ResultDir) { $s.ResultDir = Get-DeviceResultDir -Base $s.ResultBase -Label $s.Label -StartedAfter $s.StartTime }
     [pscustomobject]@{
         device = $s.Name
         ap = $s.Ap
