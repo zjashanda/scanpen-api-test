@@ -7,13 +7,13 @@ description: ScanPen 串口 API 验证和压测工作流。Use when Codex needs 
 
 ## 概览
 
-使用本 skill 处理 ScanPen 离线串口 API 验证与压测：读取 `scanInfo.json` 风格配置，打开 AP/CP 串口，下发 `version`、`trans_start`、`xtts_start` 命令，按配置中的正则判断接口是否可用，并保存结果、AP 日志、CP 日志。
+使用本 skill 处理 ScanPen 离线串口 API 验证与压测：读取 `scanInfo.json` 风格配置，打开 AP/CP 串口，下发 `version`、`trans_start`、`xtts_start` 命令，按配置中的正则判断接口是否可用，并保存结果、AP 日志、CP 日志。AP/CP 串口日志会边读取边流式写入结果目录，避免异常中断时完全丢失现场日志。
 
 优先使用 `scripts/scanpen_api_runner.py` 和 `scripts/run_scanpen_api_test.bat`。只有在需要复现历史流程时，才使用 `scripts/legacy_scanpenApiTest_fixed.py`。
 
 ## 资源布局
 
-- `scripts/scanpen_api_runner.py`：推荐入口，支持列串口、基础验证、循环压测、结果落盘。
+- `scripts/scanpen_api_runner.py`：推荐入口，支持列串口、基础验证、循环压测、纯中文/纯英文/中英混合语料、按轮次随机语料类型、随机文本长度、串口日志流式落盘。
 - `scripts/run_scanpen_api_test.bat`：Windows 便捷入口，顶部变量可直接修改端口、次数、文本、模式等参数。
 - `scripts/legacy_scanpenApiTest_fixed.py`：原始脚本的缩进修复版，用于兼容历史压测流程。
 - `assets/configs/default_scanInfo.json`：默认配置，AP=`COM6`，CP=`COM3`，baud=`921600`。
@@ -70,10 +70,29 @@ python C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\scanpen_api
   --baud 921600 `
   --count 100 `
   --ops trans,tts `
-  --corpus-kind chinese `
+  --corpus-kind random `
   --text-bytes 40 `
   --interval 1 `
   --label trans_tts_40byte
+```
+
+如需每轮随机长度，使用历史常用范围 40~120 byte：
+
+```powershell
+python C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\scanpen_api_runner.py `
+  --mode stress `
+  --config C:\Users\Administrator\.codex\skills\scanpen-api-test\assets\configs\default_scanInfo.json `
+  --ap COM6 `
+  --cp COM3 `
+  --baud 921600 `
+  --count 100 `
+  --ops trans,tts `
+  --corpus-kind random `
+  --random-text-bytes `
+  --min-text-bytes 40 `
+  --max-text-bytes 120 `
+  --interval 1 `
+  --label trans_tts_kind_random_40_120byte
 ```
 
 常用参数：
@@ -81,11 +100,15 @@ python C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\scanpen_api
 - `--count`：循环次数。
 - `--ops`：压测项目，可取 `trans`、`tts`、`version`，用逗号组合，例如 `trans,tts`。
 - `--text`：固定输入文本；提供该参数时不从语料截取。
-- `--corpus-kind chinese|english`：未提供固定文本时使用中文或英文语料。
-- `--text-bytes`：从语料截取的 UTF-8 字节上限，模拟 40/120 byte 等历史压测口径。
-- `--language`：翻译语言参数，中文常用 `1`，英文常用 `2`。
+- `--corpus-kind chinese|english|mixed|random`：未提供固定文本时选择语料类型；`chinese` 表示单条纯中文，`english` 表示单条纯英文，`mixed` 表示单条中英混合，`random` 表示每轮从这三类中随机选择一种。
+- `--text-bytes`：固定长度模式下从语料截取的 UTF-8 字节上限，模拟 40/120 byte 等历史压测口径。
+- `--random-text-bytes`：压测时每轮随机文本长度；随机范围由 `--min-text-bytes` 和 `--max-text-bytes` 控制。
+- `--min-text-bytes` / `--max-text-bytes`：随机长度范围，建议先使用历史口径 `40~120`。
+- `--random-seed`：可选随机种子，用于复现同一组随机文本。
+- `--language`：翻译语言参数，`0` 表示按语料类型自动选择，中文/混合用 `1`，英文用 `2`；也可手动指定 `1` 或 `2`。
 - `--role --volume --speed`：TTS 参数。
-- `--stop-on-fail`：遇到首个失败立即停止。
+- `--stop-on-fail`：仅遇到串口不可用、串口读写异常或设备疑似卡死等 fatal 问题时停止；普通接口超时/正则未匹配只记录到 `result.csv` 并继续压测。
+- `--fatal-consecutive-failures`：与 `--stop-on-fail` 配合使用，连续 N 次接口失败且 AP 侧没有任何新日志活动时判定设备疑似卡死并停止该设备进程；默认 `3`，设为 `0` 可关闭该卡死阈值。
 - `--dry-run`：只解析配置并打印将发送的命令，不打开串口。
 
 ## 批处理脚本
@@ -95,16 +118,27 @@ python C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\scanpen_api
 ```cmd
 C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\run_scanpen_api_test.bat validate
 C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\run_scanpen_api_test.bat stress --count 200 --ops trans,tts --text-bytes 120
+C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\run_scanpen_api_test.bat stress --count 200 --random-text-bytes --min-text-bytes 40 --max-text-bytes 120 --corpus-kind random
 C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\run_scanpen_api_test.bat list-ports
 ```
+
+8 台设备并行压测入口也随 skill 同步，仓库更新后可直接运行。默认结果目录为执行命令时当前目录下的 `result/`，不会写到 skill 目录：
+
+```cmd
+C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\run_scanpen_8_stress.bat 10 random 40 120 random
+```
+
+`run_scanpen_8_stress.bat` 会调用同目录下的 `run_scanpen_8_stress.ps1`，默认设备映射为 dev1 COM7/COM4、dev2 COM8/COM6、dev3 COM3/COM10、dev4 COM5/COM9、dev5 COM20/COM24、dev6 COM22/COM23、dev7 COM25/COM18、dev8 COM19/COM21。
 
 修改 `scripts/run_scanpen_api_test.bat` 顶部变量即可适配不同需求：
 
 - `MODE`：`list-ports`、`validate`、`stress`。
 - `AP_PORT` / `CP_PORT` / `BAUD`：现场串口参数。
 - `TEXT` / `LANGUAGE` / `ROLE` / `VOLUME` / `SPEED`：单次验证参数。
-- `TEXT_B64`：UTF-8 base64 文本，默认是“你好”，用于避免 `.bat` 中文编码问题；若要用明文 ASCII，可清空 `TEXT_B64` 后修改 `TEXT`。
-- `COUNT` / `OPS` / `TEXT_BYTES` / `CORPUS_KIND` / `INTERVAL`：压测参数。
+- `TEXT_B64`：UTF-8 base64 文本，用于避免 `.bat` 中文编码问题；`validate` 模式下若 `TEXT` 和 `TEXT_B64` 都为空，会自动使用“你好”；`stress` 模式下二者为空表示从语料生成文本。
+- `COUNT` / `OPS` / `TEXT_BYTES` / `CORPUS_KIND` / `INTERVAL`：压测参数，`CORPUS_KIND` 可取 `chinese`、`english`、`mixed`、`random`。
+- `RANDOM_TEXT_BYTES` / `MIN_TEXT_BYTES` / `MAX_TEXT_BYTES` / `RANDOM_SEED`：批处理内的随机长度参数；`RANDOM_TEXT_BYTES=1` 时启用每轮随机长度。
+- `STOP_ON_FAIL` / `FATAL_CONSECUTIVE_FAILURES`：停止策略；`STOP_ON_FAIL=1` 时不会因为单次翻译/TTS 超时停止，只会在串口不可用或连续 N 次失败且 AP 无日志活动时停止该设备。
 - `RESULT_BASE` / `LABEL`：结果输出位置和标签。
 - `EXTRA_ARGS`：放额外 Python 参数，例如 `--dry-run` 或 `--stop-on-fail`。
 
@@ -112,12 +146,12 @@ C:\Users\Administrator\.codex\skills\scanpen-api-test\scripts\run_scanpen_api_te
 
 每次 `validate` 或 `stress` 会生成一个时间戳结果目录，通常包含：
 
-- `result.csv`：结构化结果，包含操作类型、文本、成功状态、翻译结果、TTS 结束信息、CP 侧耗时等。
+- `result.csv`：结构化结果，包含操作类型、文本、成功状态、翻译结果、TTS 结束信息、CP 侧耗时、请求文本字节数、实际文本字节数、语料类型等。
 - `summary.txt`：本次执行摘要。
-- `scanPen_cskApLog_<PORT>.log`：AP 侧串口日志。
-- `scanPen_cskCpLog_<PORT>.log`：CP 侧串口日志。
+- `scanPen_cskApLog_<PORT>.log`：AP 侧串口日志，运行过程中流式写入。
+- `scanPen_cskCpLog_<PORT>.log`：CP 侧串口日志，运行过程中流式写入。
 
-汇报结论时优先说明：串口是否打开、版本号、翻译是否返回、TTS 是否结束、关键耗时、结果目录路径。不要粘贴大段日志；只截取能证明结论的关键行。
+汇报结论时优先说明：串口是否打开、版本号、翻译是否返回、TTS 是否结束、关键耗时、结果目录路径。不要粘贴大段日志；只截取能证明结论的关键行。若压测被中断，优先查看已流式写入的 AP/CP 日志和已追加的 `result.csv`。
 
 ## 原始脚本兼容
 
